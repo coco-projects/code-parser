@@ -20,6 +20,9 @@
          * @param string[] $dependencyPathPrefixes
          * @param string[] $dependencySourceSubdirs
          * @param string[] $dependencyExcludePathPatterns
+         * @param string[] $vendorIncludePathPrefixes
+         * @param string[] $vendorExcludePathPrefixes
+         * @param string[] $vendorExcludePathPatterns
          *
          * @return string[]
          */
@@ -32,6 +35,9 @@
             array $dependencyPathPrefixes = [],
             array $dependencySourceSubdirs = [],
             array $dependencyExcludePathPatterns = [],
+            array $vendorIncludePathPrefixes = [],
+            array $vendorExcludePathPrefixes = [],
+            array $vendorExcludePathPatterns = [],
         ): array {
             $projectRoot = rtrim(str_replace('\\', '/', $projectRoot), '/');
             $files = [];
@@ -67,24 +73,26 @@
                 if (!$this->matchesExtensions($relativePath, $allowedExtensions)) {
                     continue;
                 }
-/*
-                $dependencyPrefix = $this->matchDependencyPrefix($relativePath, $dependencyPathPrefixes);
-                if ($dependencyPrefix !== null) {
-                    if (!$this->matchesDependencySourceSubdirs($relativePath, $dependencyPrefix, $dependencySourceSubdirs)) {
-                        continue;
-                    }
 
-                    if ($this->matchesPatterns($relativePath, $dependencyExcludePathPatterns)) {
-                        continue;
-                    }
-                }
-*/
+                if ($this->isVendorPath($relativePath)) {
+                    $vendorExplicitlyIncluded = $this->matchesPathPrefixes($relativePath, $vendorIncludePathPrefixes);
 
-                $dependencyPrefix = $this->matchDependencyPrefix($relativePath, $dependencyPathPrefixes);
-                if ($dependencyPrefix !== null) {
-                    if ($this->matchesPatterns($relativePath, $dependencyExcludePathPatterns)) {
-                        // 这里不直接排除 tests/examples/docs 等辅助代码，后续由 role 分类控制索引与召回优先级
-                        // 仅保留这个钩子给真正需要的极端排除规则
+                    if (!$vendorExplicitlyIncluded) {
+                        if ($this->matchesPathPrefixes($relativePath, $vendorExcludePathPrefixes)) {
+                            continue;
+                        }
+
+                        if ($this->matchesPatterns($relativePath, $vendorExcludePathPatterns)) {
+                            continue;
+                        }
+
+                        if ($this->matchesPatterns($relativePath, $dependencyExcludePathPatterns)) {
+                            continue;
+                        }
+
+                        if ($this->matchesDefaultVendorExcludePatterns($relativePath)) {
+                            continue;
+                        }
                     }
                 }
 
@@ -103,7 +111,7 @@
         private function matchesPathPrefixes(string $relativePath, array $prefixes): bool
         {
             foreach ($prefixes as $prefix) {
-                $prefix = trim(str_replace('\\', '/', $prefix));
+                $prefix = trim(str_replace('\\', '/', (string) $prefix));
                 if ($prefix === '') {
                     continue;
                 }
@@ -123,7 +131,7 @@
         private function matchesExtensions(string $relativePath, array $extensions): bool
         {
             foreach ($extensions as $ext) {
-                $ext = trim($ext);
+                $ext = trim((string) $ext);
                 if ($ext === '') {
                     continue;
                 }
@@ -155,63 +163,58 @@
             return false;
         }
 
-        /**
-         * @param string   $relativePath
-         * @param string[] $dependencyPathPrefixes
-         */
-        private function matchDependencyPrefix(string $relativePath, array $dependencyPathPrefixes): ?string
+        private function isVendorPath(string $relativePath): bool
         {
-            foreach ($dependencyPathPrefixes as $prefix) {
-                $prefix = trim(str_replace('\\', '/', $prefix));
-                if ($prefix === '') {
-                    continue;
-                }
-
-                if (str_starts_with($relativePath, $prefix)) {
-                    return $prefix;
-                }
-            }
-
-            return null;
+            return str_starts_with($relativePath, 'vendor/');
         }
 
-        /**
-         * @param string   $relativePath
-         * @param string   $dependencyPrefix
-         * @param string[] $dependencySourceSubdirs
-         */
-        private function matchesDependencySourceSubdirs(
-            string $relativePath,
-            string $dependencyPrefix,
-            array $dependencySourceSubdirs
-        ): bool {
-            if ($dependencySourceSubdirs === []) {
-                return true;
-            }
+        private function matchesDefaultVendorExcludePatterns(string $relativePath): bool
+        {
+            static $patterns = [
+                '(^|/)tests?/',
+                '(^|/)test-cases?/',
+                '(^|/)examples?/',
+                '(^|/)docs?/',
+                '(^|/)doc/',
+                '(^|/)benchmark(s)?/',
+                '(^|/)fixtures?/',
+                '(^|/)mocks?/',
+                '(^|/)stubs?/',
+                '(^|/)samples?/',
+                '(^|/)demos?/',
+                '(^|/)cases?/',
+                '(^|/)specs?/',
+                '(^|/)vendor-bin/',
+                '(^|/)build/',
+                '(^|/)tools?/',
+                '(^|/)bin/',
+                '(^|/)scripts?/',
+                '^vendor/phpunit/',
+                '^vendor/phpstan/',
+                '^vendor/friendsofphp/php-cs-fixer/',
+                '^vendor/squizlabs/php_codesniffer/',
+                '^vendor/php-parallel-lint/',
+                '^vendor/mockery/',
+                '^vendor/behat/',
+                '^vendor/pestphp/',
+                '^vendor/infection/',
+                '^vendor/vimeo/psalm/',
+                '^vendor/phan/',
+                '^vendor/sebastian/',
+                '^vendor/theseer/',
+                '^vendor/phar-io/',
+                '^vendor/myclabs/deep-copy/',
+                '^vendor/composer/installed\.php$',
+                '^vendor/composer/installed\.json$',
+                '^vendor/composer/autoload_classmap\.php$',
+                '^vendor/composer/autoload_files\.php$',
+                '^vendor/composer/autoload_namespaces\.php$',
+                '^vendor/composer/autoload_psr4\.php$',
+                '^vendor/composer/autoload_real\.php$',
+                '^vendor/composer/autoload_static\.php$',
+                '^vendor/composer/platform_check\.php$',
+            ];
 
-            $remaining = ltrim(substr($relativePath, strlen($dependencyPrefix)), '/');
-            if ($remaining === '') {
-                return false;
-            }
-
-            $parts = array_values(array_filter(explode('/', $remaining), static fn($item): bool => $item !== ''));
-            if (count($parts) < 2) {
-                return false;
-            }
-
-            $subPath = $parts[1] . '/';
-
-            foreach ($dependencySourceSubdirs as $subdir) {
-                $subdir = trim(str_replace('\\', '/', $subdir));
-                if ($subdir === '') {
-                    continue;
-                }
-
-                if ($subPath === $subdir) {
-                    return true;
-                }
-            }
-
-            return false;
+            return $this->matchesPatterns($relativePath, $patterns);
         }
     }

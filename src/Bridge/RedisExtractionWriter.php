@@ -56,29 +56,31 @@
 
         public function appendFileRecord(string $relativePath, array $record): void
         {
+            $this->redis->multi(Redis::PIPELINE);
             $this->redis->rPush($this->payload->filesKey(), $relativePath);
             $this->redis->rPush(
                 $this->payload->recordsKey(),
                 json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}'
             );
             $this->redis->hIncrBy($this->payload->metaKey(), 'processed_files', 1);
+            $this->redis->exec();
+
             $this->expireAll();
         }
 
         public function markSuccess(): void
         {
             $this->redis->hIncrBy($this->payload->metaKey(), 'success_files', 1);
-            $this->expireAll();
         }
 
         public function markSkipped(): void
         {
             $this->redis->hIncrBy($this->payload->metaKey(), 'skipped_files', 1);
-            $this->expireAll();
         }
 
         public function markFailed(string $relativePath, string $errorMessage): void
         {
+            $this->redis->multi(Redis::PIPELINE);
             $this->redis->hIncrBy($this->payload->metaKey(), 'failed_files', 1);
             $this->redis->rPush(
                 $this->payload->errorsKey(),
@@ -88,6 +90,8 @@
                     'stage' => 'extract',
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}'
             );
+            $this->redis->exec();
+
             $this->expireAll();
         }
 

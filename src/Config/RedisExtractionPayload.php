@@ -6,6 +6,15 @@
 
     final class RedisExtractionPayload
     {
+        /**
+         * @param string[] $includePathPrefixes
+         * @param string[] $allowedExtensions
+         * @param string[] $excludePathPrefixes
+         * @param string[] $excludePathPatterns
+         * @param string[] $dependencyPathPrefixes
+         * @param string[] $dependencySourceSubdirs
+         * @param string[] $dependencyExcludePathPatterns
+         */
         public function __construct(
             public readonly string $taskId,
             public readonly string $projectName,
@@ -102,7 +111,7 @@
                 dependencyExcludePathPatterns: $dependencyExcludePathPatterns,
                 writeOutputFile: (bool) ($runtime['write_output_file'] ?? true),
                 writeRedis: (bool) ($runtime['write_redis'] ?? true),
-                batchSize: (int) ($runtime['batch_size'] ?? 1),
+                batchSize: max(1, (int) ($runtime['batch_size'] ?? 1)),
                 debug: (bool) ($runtime['debug'] ?? false),
             );
         }

@@ -31,7 +31,7 @@
 		"extract"     : "php bin/extract.php",
 		"test"        : "./vendor/phpunit/phpunit/phpunit ",
 		"analyse"     : "./vendor/bin/phpstan analyse -vvv --error-format=table > .phpstan.txt",
-		"check-style" : "./vendor/squizlabs/php_codesniffer/bin/phpcs  -p --standard=PSR2 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests",
+		"check-style" : "./vendor/squizlabs/php_codesniffer/bin/phpcs -p --standard=PSR2 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests",
 		"fix-style"   : "./vendor/squizlabs/php_codesniffer/bin/phpcbf -p --standard=PSR2 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests",
 		"run-test"    : [
 			"@test",
@@ -40,6 +40,7 @@
 		]
 	},
 	"scripts-descriptions" : {
+		"extract"     : "Run PHP extractor (Redis bridge mode is the primary path; legacy output option remains only for compatibility)",
 		"test"        : "Run unit tests",
 		"check-style" : "Check code formatting with phpcs",
 		"fix-style"   : "Fix code formatting with phpcbf",

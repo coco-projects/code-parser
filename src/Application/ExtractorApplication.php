@@ -7,11 +7,9 @@
     use Coco\codeParser\Bridge\RedisExtractionWriter;
     use Coco\codeParser\Config\ExtractorConfig;
     use Coco\codeParser\Config\RedisExtractionPayload;
-    use Coco\codeParser\Model\ExtractionResult;
     use Coco\codeParser\Model\FileRecord;
     use Coco\codeParser\Parser\AstParserFactory;
     use Coco\codeParser\Scanner\PhpFileScanner;
-    use Coco\codeParser\Serializer\JsonlWriter;
     use Coco\codeParser\Visitor\FileContextVisitor;
     use Coco\codeParser\Visitor\RelationCollectingVisitor;
     use Coco\codeParser\Visitor\SymbolCollectingVisitor;
@@ -21,7 +19,6 @@
         public function run(ExtractorConfig $config, ?RedisExtractionPayload $payload = null): void
         {
             $projectRoot = rtrim(str_replace('\\', '/', $config->projectRoot), '/');
-            $outputPath = $config->outputPath;
 
             $scanner = new PhpFileScanner();
             $files = $scanner->scan(
@@ -35,29 +32,30 @@
                 dependencyExcludePathPatterns: $config->dependencyExcludePathPatterns,
             );
 
+            $totalFiles = count($files);
+
             $redisWriter = null;
             if ($payload !== null && $payload->writeRedis) {
                 $redisWriter = new RedisExtractionWriter($payload);
-                $redisWriter->startTask(count($files));
+                $redisWriter->startTask($totalFiles);
             }
 
             $parserFactory = new AstParserFactory();
 
-            $allFileRecords = [];
-            $allSymbolRecords = [];
-            $allRelationRecords = [];
-
             try {
+                $index = 0;
+
                 foreach ($files as $filePath) {
+                    $index++;
                     $relativePath = ltrim(substr(str_replace('\\', '/', $filePath), strlen($projectRoot)), '/');
                     $pathRole = $this->detectPathRole($relativePath, $config);
 
-                    fwrite(STDOUT, "[EXTRACT] {$relativePath}\n");
+                    fwrite(STDOUT, "[EXTRACT][{$index}/{$totalFiles}] {$relativePath}\n");
 
                     $parsedFile = $parserFactory->parseFile($filePath);
 
                     if ($parsedFile->ast === null) {
-                        fwrite(STDOUT, "[SKIP] {$relativePath} parse failed or ast is null\n");
+                        fwrite(STDOUT, "[SKIP][{$index}/{$totalFiles}] {$relativePath} parse failed or ast is null\n");
 
                         if ($redisWriter !== null) {
                             $redisWriter->appendFileRecord($relativePath, [
@@ -114,16 +112,6 @@
                         $relationCollector = new RelationCollectingVisitor();
                         $relations = $relationCollector->collect($fileRecord, $symbols);
 
-                        $allFileRecords[] = $fileRecord;
-
-                        foreach ($symbols as $symbol) {
-                            $allSymbolRecords[] = $symbol;
-                        }
-
-                        foreach ($relations as $relation) {
-                            $allRelationRecords[] = $relation;
-                        }
-
                         if ($redisWriter !== null) {
                             $redisWriter->appendFileRecord($relativePath, [
                                 'relative_path' => $relativePath,
@@ -143,7 +131,8 @@
                             $redisWriter->markSuccess();
                         }
                     } catch (\Throwable $e) {
-                        fwrite(STDOUT, "[SKIP] {$relativePath} " . $e->getMessage() . "\n");
+                        fwrite(STDOUT, "[SKIP][{$index}/{$totalFiles}] {$relativePath} " . $e->getMessage() . "\n");
+
                         if ($redisWriter !== null) {
                             $redisWriter->appendFileRecord($relativePath, [
                                 'relative_path' => $relativePath,
@@ -161,17 +150,6 @@
                     }
                 }
 
-                if ($payload === null || $payload->writeOutputFile) {
-                    $result = new ExtractionResult(
-                        files: $allFileRecords,
-                        symbols: $allSymbolRecords,
-                        relations: $allRelationRecords,
-                    );
-
-                    $writer = new JsonlWriter();
-                    $writer->writeToFile($outputPath, $result->allRecords());
-                }
-
                 if ($redisWriter !== null) {
                     $redisWriter->complete('completed');
                 }
@@ -182,6 +160,7 @@
                 throw $e;
             }
         }
+
         private function detectPathRole(string $relativePath, ExtractorConfig $config): string
         {
             $normalized = str_replace('\\', '/', $relativePath);
@@ -250,6 +229,7 @@
 
             return 'other';
         }
+
         private function detectStrictTypes(string $code): bool
         {
             return preg_match('/declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;/i', $code) === 1;

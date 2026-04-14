@@ -10,7 +10,7 @@
 
     $options = getopt('', [
         'project-root:',
-        'output:',
+        'output::',
         'include-path-prefixes::',
         'allowed-extensions::',
         'payload-base64::',
@@ -45,13 +45,13 @@
     }
 
     $projectRoot = $options['project-root'] ?? null;
-    $outputPath = $options['output'] ?? null;
+    $outputPath = $options['output'] ?? '/tmp/extractor.compat.result.jsonl';
     $includePathPrefixes = $options['include-path-prefixes'] ?? 'src/';
     $allowedExtensions = $options['allowed-extensions'] ?? '.php';
 
-    if (!$projectRoot || !$outputPath) {
+    if (!$projectRoot) {
         fwrite(STDERR, "用法:\n");
-        fwrite(STDERR, "  php bin/extract.php --project-root=/path/to/project --output=result.jsonl [--include-path-prefixes=src/,vendor/] [--allowed-extensions=.php,.inc]\n");
+        fwrite(STDERR, "  php bin/extract.php --project-root=/path/to/project [--output=result.jsonl] [--include-path-prefixes=src/,vendor/] [--allowed-extensions=.php,.inc]\n");
         fwrite(STDERR, "  或者:\n");
         fwrite(STDERR, "  php bin/extract.php --payload-base64=<base64_json>\n");
         exit(1);

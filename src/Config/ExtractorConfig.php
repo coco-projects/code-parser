@@ -6,6 +6,15 @@
 
     final class ExtractorConfig
     {
+        /**
+         * @param string[] $includePathPrefixes
+         * @param string[] $allowedExtensions
+         * @param string[] $excludePathPrefixes
+         * @param string[] $excludePathPatterns
+         * @param string[] $dependencyPathPrefixes
+         * @param string[] $dependencySourceSubdirs
+         * @param string[] $dependencyExcludePathPatterns
+         */
         public function __construct(
             public readonly string $projectRoot,
             public readonly string $outputPath,
